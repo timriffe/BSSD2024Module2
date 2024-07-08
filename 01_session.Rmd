@@ -108,6 +108,64 @@ Exposure <-
   mutate(exposure = (left + right) / 2)
 ```
 
+## calculate crude death rates:
+
+Join the death counts to the exposures; note we still needed to reshape deaths a bit; now that we have deaths and exposures side-by-side we can calculate all kinds of things:
+```{r}
+mort <-
+  D |> 
+  select(-open_interval) |> 
+  pivot_longer(female:total,
+               names_to = "sex",
+               values_to = "deaths") |> 
+  left_join(Ex, by = join_by(sex,age))
+```
+
+Calculate the CDR (death rate per 1000)
+```{r}
+CDR <-
+  mort |> 
+  group_by(sex) |> 
+  summarize(CDR = 1000 * sum(deaths) / sum(exposure))
+```
+
+## shape of mortality over age
+
+```{r}
+mort |> 
+  mutate(mx = deaths / exposure) |> 
+  ggplot(mapping = aes(x = age,
+                       y = mx,
+                       color = sex)) +
+  geom_line() +
+  scale_y_log10() +
+  geom_hline(data = CDR,
+             mapping = aes(yintercept = CDR/1000, color = sex))
+```
+
+Make a plot of the sex ratio (male / female) of mortality. In what ages is it the highest in these data? Remember, we prefer to log the y axis for ratio data.
+```{r}
+mort |> 
+  mutate(mx = deaths / exposure) |> # mx = rate
+  select(sex, age, mx) %>%
+  pivot_wider(names_from = sex,
+              values_from = mx) %>%
+  mutate(SRM = male / female) |>
+  ggplot(mapping = aes(x= age,
+                      y = SRM)) +
+  geom_line() +
+  scale_y_log10() +
+  geom_smooth(span = .1)
+
+```
+
+## a population 
+
+
+
+
+
+
 
 
 

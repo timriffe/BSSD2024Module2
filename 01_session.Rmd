@@ -1,0 +1,146 @@
+---
+title: "Session 1 notes"
+author: "Tim Riffe"
+date: "2024-07-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## What is a population?
+
+To remember: always be clear about the criterion used to define a population. That is, delcare the universe.
+
+## Demography
+
+(1) We might mean the accounting approach, focused on getting consistent estimates of the components of demographic change and how they relate to the population structure between points in time.
+
+(2) Fundamental science approach to demography, where we investigate the limits to the demography of our species, or zoom in on the complex drivers and interactions between the forces of demographic change.
+
+## Rates vs probabilities
+
+Probability:
+
+$$ probability = \frac{events}{people~that~could~have~experienced~the~event } $$
+
+A demographic probability is defined over a time interval. The only times when we can directly measure a probability are when demographic aggregates are very detailed in terms of their time structure, or e.g. in panel surveys (i.e. when respondents are observed at least twice)
+
+A rate is defined as events relative to person years of exposure.
+
+$$ rate = \frac{events}{person~yeas~of~exposure} $$ 
+A rate is more like a speed or force. 
+
+Probabilities are constrained to be between 0 and 1, but rates can be any positive number. We do see mortality rates greater than 1 from time to time, but it's either (1) small data or (2) short time intervals + high risk populations + mortality shocks.
+
+Time intervals are key for understanding the difference between rates and probabilities. For example, for wider age intervals a death probability will be larger than a death rate.
+
+## Load some data
+
+```{r, message = FALSE}
+library(tidyverse)
+B <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_B2014.csv")
+D <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/data/ES_D2014.csv")
+E <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_P2014.csv")
+```
+
+First, let's calculate exposures from the Jan 1 population estimates
+
+`Ctrl + Alt + i` makes a chunk (`Cmd + Option + i`)
+```{r}
+# exposure = avg of jan 1 estimates in consecutive years
+Ex <-
+  E |> 
+  # stack sex columns so we have tidy (long dataset)
+  pivot_longer(female:total,
+               names_to = "sex",
+               values_to = "pop") |> 
+  # split the dataset to 2-row groups (jan 1 2014 and 2015)
+  group_by(sex, age) |> 
+  # calculate exposure as average of bounding populations.
+  summarize(exposure = mean(pop), .groups = "drop")
+```
+
+This would be a more intuitive setup, in that we thik of creating a third exposure column based on side-by-side jan 1 columns, however, we need to do it a bit differently in order to scale.
+
+```{r}
+E |> 
+  pivot_longer(female:total,
+                names_to = "sex",
+                values_to = "pop") |> 
+  pivot_wider(names_from = year, 
+               values_from = pop) |> 
+  mutate(exposure = (`2014` + `2015`) / 2)
+```
+
+This is the scalabale version of doing the same thing, in the sense that you could have multipe years / subpopulations
+
+Step 1: create the left side bounding population (jan 1)
+```{r}
+left <- 
+  E |> 
+  pivot_longer(female:total,
+                names_to = "sex",
+                values_to = "pop") |> 
+  filter(year < max(year)) |> 
+  rename(left = pop)
+```
+
+Step 2: create the right-side: don't forget to decrease year by 1 in order to have a successful join!
+```{r}
+right <- 
+  E |> 
+  pivot_longer(female:total,
+                names_to = "sex",
+                values_to = "pop") |> 
+  filter(year > min(year)) |> 
+  mutate(year = year - 1) |> 
+  rename(right = pop)
+```
+
+Finally: merge the two series and calulcate exposure as the average
+```{r}
+Exposure <- 
+  inner_join(left, 
+             right, 
+             by = join_by(sex, year, age)) |> 
+  mutate(exposure = (left + right) / 2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

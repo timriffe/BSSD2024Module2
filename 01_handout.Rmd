@@ -216,7 +216,6 @@ lexis_lifeline(lg = mylexis,
 We will use the Spanish females data from the HMD [@HMD] and HFD [@HFD] for the year 2014 (and 2015 population counts). Please read in the raw data using these lines:
 
 ```{r error=F, message=F, warning=F}
-
 library(tidyverse)
 library(readr)
 #Birth counts in 2014
@@ -239,6 +238,13 @@ E2014 <- read_csv("data/ES_P2014.csv") |>
   arrange(sex, age) |> 
   group_by(sex, age) |> 
   summarize(exposure = mean(pop))
+
+# fertility rates by age
+Fx2014 <-
+  B2014 |> 
+  mutate(sex = "female") |> 
+  left_join(E2014, by = join_by(sex, age)) |> 
+  mutate(asfr = births / exposure)
 ```
 
 
@@ -248,15 +254,7 @@ The population pyramid or age pyramid is the most common tool to visualize the a
 
 
 ```{r}
-
-#Prepare the data
-
-
-#Plot the pyramid with ggplot2
-
 library(ggplot2)
-
-
 E2014 |> 
   select(sex, age, pop = exposure) |>
   filter(sex != "total") |> 
@@ -265,23 +263,26 @@ E2014 |>
   ggplot( aes(x = age, y = population, fill = sex)) +
   geom_col(width = 1) +
   # axis labels and grids
-  scale_y_continuous(breaks = seq(-400000, 400000, 200000),
+
+    scale_y_continuous(breaks = seq(-400000, 400000, 200000),
                      labels = paste0(as.character(c(seq(400, 0, -200), seq(200, 400, 200))), "k")) +
   scale_x_continuous(breaks = seq(0, 100, 20))+
 
   # extra nice grids (2m per box)- needs to be worked out by hand
   geom_vline(xintercept = seq(20, 100, by = 20), 
              color = "white", 
-             width = .5) + 
+             linewidth = .5) + 
   geom_hline(yintercept = seq(-400000, 400000, by = 100000), 
              color = "white",
-             width = .5) +
+             linewidth = .5) +
   guides(fill = "none") +
   
   # final flip x and y
   coord_flip() +
   scale_fill_brewer(palette = "Set1") +
-  theme_minimal()
+  theme_minimal() +
+  labs(caption = "Data: HMD",
+       title = "Age and sex structure, Spain 2014")
 ```
 
 # Demographic rate vs probability
@@ -410,11 +411,7 @@ $$
 
 This measure controls for the effect of population age-structure, i.e. some populations have older age-structure than others resulting in higher CDR even if the $_nM_x$ are smaller at most ages. The age interval width $n$ and calendar interval $t$ are up to you and the data.
 
-```{r}
-
-# Person-years by age
-
-
+```{r, warning=F}
 E2014 |> 
   left_join(D2014, by = join_by(sex, age)) |> 
   mutate(mx = deaths / exposure) |> 
@@ -422,6 +419,7 @@ E2014 |>
   geom_line() + 
   scale_y_log10() + 
   labs(title = "Age-specific mortality rates for Spain",
+       caption = "Data: HMD",
        y = "log mortality") +
   theme_minimal()
 
@@ -446,6 +444,7 @@ $$
 # Person-years
 B2014 |> 
   right_join(E2014,by=join_by(sex, age)) |> 
+  filter(sex == "total") |> 
   summarize(exposure = sum(exposure),
             births = sum(births, na.rm = TRUE)) |> 
   mutate(CBR = 1000 * births / exposure)
@@ -461,11 +460,7 @@ $$
 
 ```{r}
 # Female population in 2014 and 2015 at reproductive ages
-B2014 |> 
-  filter(!is.na(births)) |> 
-  mutate(sex = "female") |> 
-  select(sex, age, births) |>
-  left_join(E2014,by=join_by(sex,age)) |> 
+Fx2014 |> 
   filter(between(age, 15, 50)) |> 
   summarize(exposure = sum(exposure),
             births = sum(births)) |> 
@@ -483,11 +478,8 @@ _nF_x[0,T]= \frac{Number~of~births~between~times~T~and~T+t~to~women~aged~x~to~x+
 $$
 ```{r}
 
-B2014 |> 
-  mutate(sex = "female") |> 
-  left_join(E2014, by = join_by(sex, age)) |> 
-  mutate(ASFR = births / exposure) |> 
-  ggplot(aes(x = age, y = ASFR)) + 
+Fx2014 |> 
+  ggplot(aes(x = age, y = asfr)) + 
   geom_line() +
   labs(title = "Age-specific fertility rates (Spain 2014)",
        caption = "Data: HMD and HFD") +
@@ -504,16 +496,10 @@ $$
 where $a$ and $B$ are the minimum and maximum age at childbearing.
 
 ```{r}
-
 # TFR
-B2014 |> 
-  mutate(sex = "female") |> 
-  left_join(E2014,by=join_by(sex,age)) |> 
-  mutate(ASFR = births / exposure,
-         n = 1) |> # make this 5 if you have 5-year age groups!!
-  summarize(TFR = sum(ASFR * n))
-
-
+Fx2014 |> 
+  mutate(n = 1) |> # make this 5 if you have 5-year age groups!!
+  summarize(TFR = sum(asfr * n))
 ```
 
 
@@ -527,13 +513,10 @@ where $\bar{x}$ is the mid-age of interval $x:x+n$, i.e. $\bar{x} = x+ n/2$.
 
 ```{r}
 
-B2014 |> 
-  mutate(sex = "female") |> 
-  left_join(E2014,by=join_by(sex,age)) |> 
-  mutate(ASFR = births / exposure,
-         n = 1,
+Fx2014 |> 
+  mutate(n = 1,
          age_mid = age + n / 2) |> 
-  summarize(MAB1 = sum(age_mid * ASFR) / sum(ASFR),
+  summarize(MAB1 = sum(age_mid * asfr) / sum(asfr),
             MAB2 = sum(age_mid * births) / sum(births))
 
 ```

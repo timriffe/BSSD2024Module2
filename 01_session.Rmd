@@ -11,13 +11,17 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## What is a population?
 
-To remember: always be clear about the criterion used to define a population. That is, delcare the universe.
+To remember: always be clear about the criterion used to define a population. That is, delcare the universe. 
+
+Of note when we calculate probabilities and rates: the universe of the numerator and denominator _must_ be the same, otherwise we can induce very large biases in rates, especially with small populations!
 
 ## Demography
 
 (1) We might mean the accounting approach, focused on getting consistent estimates of the components of demographic change and how they relate to the population structure between points in time.
 
-(2) Fundamental science approach to demography, where we investigate the limits to the demography of our species, or zoom in on the complex drivers and interactions between the forces of demographic change.
+(2) Fundamental science approach to demography, where we investigate the limits to the demography of our species, or zoom in on the complex drivers and interactions between the forces of demographic change. i.e. it's an interdiscipline and far more than basic measurement and accounting.
+
+I add: We all rely on the fruits of the accounting approach, and if disinvestment happens in the core demographic activities we all lose.
 
 ## Rates vs probabilities
 
@@ -25,16 +29,17 @@ Probability:
 
 $$ probability = \frac{events}{people~that~could~have~experienced~the~event } $$
 
-A demographic probability is defined over a time interval. The only times when we can directly measure a probability are when demographic aggregates are very detailed in terms of their time structure, or e.g. in panel surveys (i.e. when respondents are observed at least twice)
+A demographic probability is defined over a time interval. The only times when we can directly measure a probability are when demographic aggregates are very detailed in terms of their time structure, or e.g. in panel surveys (i.e. when respondents are observed at least twice). In a Lexis diagram, probabilities can only be calculated in the cohort direction, and notably only in period-cohort parallelograms (the vertical kind).
 
+Rates:
 A rate is defined as events relative to person years of exposure.
 
 $$ rate = \frac{events}{person~yeas~of~exposure} $$ 
-A rate is more like a speed or force. 
+A rate is more like a speed or force. Rates are treated as positive (even when they refer to attrition!)
 
 Probabilities are constrained to be between 0 and 1, but rates can be any positive number. We do see mortality rates greater than 1 from time to time, but it's either (1) small data or (2) short time intervals + high risk populations + mortality shocks.
 
-Time intervals are key for understanding the difference between rates and probabilities. For example, for wider age intervals a death probability will be larger than a death rate.
+Time intervals are key for understanding the difference between rates and probabilities. For example, for wider age intervals a death probability tends to be larger than a death rate.
 
 ## Load some data
 
@@ -45,9 +50,13 @@ D <- read_csv("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master
 E <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_P2014.csv")
 ```
 
-First, let's calculate exposures from the Jan 1 population estimates
+SOme hot key notes:
+`Ctrl + Alt + i` makes a chunk (`Cmd + Option + i` on mac)
+`Ctrl + Shift + m` makes a pipe. (`Cmd + Shift + m` on mac). Yours might look like `%>%`, but they also work like `|>`
 
-`Ctrl + Alt + i` makes a chunk (`Cmd + Option + i`)
+First, let's calculate exposures from the Jan 1 population estimates. This is all about planning the route from the original data format to the one you need in order to perform the calculation. We'll approximate exposure using the average of consecutive Jan 1 estimates.
+
+Since we have just 1 year of data, this was my first instinct on how to do it quickly:
 ```{r}
 # exposure = avg of jan 1 estimates in consecutive years
 Ex <-
@@ -62,7 +71,7 @@ Ex <-
   summarize(exposure = mean(pop), .groups = "drop")
 ```
 
-This would be a more intuitive setup, in that we thik of creating a third exposure column based on side-by-side jan 1 columns, however, we need to do it a bit differently in order to scale.
+The following would be a more intuitive setup, in that we think of creating a third exposure column based on side-by-side jan 1 columns, however, we need to do it a bit differently in order to scale.
 
 ```{r}
 E |> 
@@ -108,6 +117,22 @@ Exposure <-
   mutate(exposure = (left + right) / 2)
 ```
 
+It was suggested (HT Barbara) to use lead/lag thinking to do the same. This would also work! This results in the same data format as the previous solution, but in a single pipeline, which is more elegant. So this is the new preffered way to do it!
+
+```{r}
+E |> 
+  select(-open_interval) |> 
+  pivot_longer(female:total, 
+               names_to = "sex", 
+               values_to = "pop1") |> 
+  arrange(sex, age, year) |> 
+  group_by(sex, age) |> 
+  mutate(pop2 = lead(pop1)) |> 
+  ungroup() |> 
+  filter(!is.na(pop2)) |> 
+  mutate(exposure = (pop1 + pop2) / 2)
+```
+
 ## calculate crude death rates:
 
 Join the death counts to the exposures; note we still needed to reshape deaths a bit; now that we have deaths and exposures side-by-side we can calculate all kinds of things:
@@ -129,6 +154,8 @@ CDR <-
   summarize(CDR = 1000 * sum(deaths) / sum(exposure))
 ```
 
+I want you to start thinking of crude rates as weighted means of age-specific rates, where the weights didn't get any consideration! The weights in this case are our accidental population pyramid of the moment.
+
 ## shape of mortality over age
 
 ```{r}
@@ -143,7 +170,13 @@ mort |>
              mapping = aes(yintercept = CDR/1000, color = sex))
 ```
 
-Make a plot of the sex ratio (male / female) of mortality. In what ages is it the highest in these data? Remember, we prefer to log the y axis for ratio data.
+I commented the above plot a lot in the session, notes:
+1. It covers 4ish orders of magnitude, wow!
+2. Certain schematic features of the age pattern are nearly universal in humans, and have inspired simplified parametric models. Why? To interpolate, extrapolate, smooth, diagnose, or adjust data. If things are pretty darn empirically regular then deviations from then these need to be measured and explained. The parts of the curve are _ontogenescence_ (decrease in first years of life), _quiessence_ (the minimum near age 10), _young adult excess_, and _senescence_ (where the straight line part is called Gomperz, and a logistic round-off in old ages might be called Kannisto).
+3. Notice how the blue line (total) starts in the middle between male and female mortality, but edges closer to female mortality in older ages. This is because the composition changes with age due to differential attrition (ergo the following plots)
+4. I argue that all the other social dimensions that explain aggregate mortality differentials are far smaller than the power of age structure. Which isn't to diminish them. Rather, I advise to expect diminishing returns to controlling for more dimensions of social structure. Case in point, sex differences in mortality can be quite high. But I didn't know off hand how high in this data, ergo the next plot:
+
+Make a plot of the sex ratio (male / female) of mortality. In what ages is it the highest in these data? Remember, we prefer to log the y axis for ratio data. This was partially an exercise. In this data it's bimodal. In young adult ages, in other populations, we can see far higher sex ratios as well.
 ```{r}
 mort |> 
   mutate(mx = deaths / exposure) |> # mx = rate
@@ -156,11 +189,13 @@ mort |>
   geom_line() +
   scale_y_log10() +
   geom_smooth(span = .1)
-
 ```
 
-## a population pyramid
+## A population pyramid
 
+The question was posed (HT Maya), why then are there overall roughly equal numbers of males and females? In young ages males are born in excess, but in older ages, females are dominant, and it's very visible even in a population pyramid. Lo and behold, and excuse to make a population pyramid!
+
+We make this population pyramid to point out how the above mortality imbalance drives changing sex ratios in the population structure. You can see a more fully worked-out example of making a population pyramid in `ggplot2` in the handout for today. Note, designing it sideways and doing `coord_flip()` turns out to be necessary! The grid line spacing is supposed to lead to easier eyeballing of sizes: One full box here works out to 2 million people. I recommend taking the time so that things work out cleanly when making such plots.
 ```{r}
 Ex |> 
   filter(sex != "total") |> 
@@ -177,6 +212,20 @@ Ex |>
   geom_vline(xintercept = seq(10,100,by = 20),
              color = "white", linewidth = .5) +
   coord_flip()
+```
+
+NEW: or by extension, we could just look at the SRP:
+
+```{r}
+Ex |> 
+  pivot_wider(names_from = sex,
+              values_from = exposure) |> 
+  mutate(SRP = male / female) |> 
+  ggplot(aes(x = age, y = SRP)) +
+  geom_line() +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(title = "We start with a slightly male-heavy population\nbut by age 55 here the population is female dominant")
 ```
 
 

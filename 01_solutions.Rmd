@@ -1,0 +1,92 @@
+---
+title: "session 1 exercise solutions"
+author: "Tim Riffe"
+date: "2024-07-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load the data
+
+I got these urls from the _raw_ button of the respective files on github:
+
+```{r, nessage = FALSE}
+library(tidyverse)
+library(janitor)
+B <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_B.csv.gz",
+              show_col_types = FALSE)
+P <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_P.csv.gz",
+              show_col_types = FALSE)
+```
+
+Calculate exposure; note we have `Female1` and `Female2`, these are already year beginning and year end estimates, already side-by side, so this is good. 
+```{r}
+E <-
+  P |> 
+  clean_names() |> 
+  select(year, age, female1, female2) |> 
+  mutate(exposure = (female1 + female2) / 2) |> 
+  select(!starts_with("fem"))
+```
+
+1. calculate asfr
+```{r}
+Fx <- 
+  B |> 
+  clean_names() |> 
+  select(year, age, births = total) |> 
+  left_join(E, by = join_by(year, age)) |> 
+  mutate(Fx = births / exposure)
+```
+
+Why not 1975? The deviation in TFR is indeed small; this is coming from the HMD documentation, where we see that there was a universe definition change in that year, which stifles exposure calculations. The HMD has a slick way to account for this, but we don't have the info handy that we'd need.
+
+```{r}
+TFR <- 
+  Fx |> 
+  group_by(year) |> 
+  summarize(TFR = sum(Fx)) 
+TFR |> 
+  ggplot(aes(x = year, y = TFR)) +
+  geom_line() +
+  geom_point(data = TFR |> filter(year == 1975), color = "red", size = 2)
+```
+
+2. plot asfr for 1950 and 2014
+
+```{r}
+Fx |> 
+  filter(year %in% c(1950,2014)) |> 
+  ggplot(aes(x= age, y = Fx, color = as.factor(year))) +
+  geom_line()
+```
+
+3 and 4: Done above to investigate why 1975 is supposedly problematic
+
+5. and 6. calculate and plot MAB
+
+```{r}
+MAB <-
+  Fx |> 
+  group_by(year) |> 
+  summarize(MAB = sum(Fx * age) / sum(Fx) + .5)
+
+MAB |> 
+  ggplot(aes(x = year, y = MAB)) +
+  geom_line() +
+  theme_minimal()
+```
+
+Curious how MAB and TFR move together?
+
+```{r}
+MAB |> 
+  left_join(TFR,by=join_by(year)) |> 
+  ggplot(aes(x = TFR, y = MAB, color = year)) +
+  geom_point() +
+  theme_minimal()
+```
+

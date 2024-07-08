@@ -1,4 +1,4 @@
-Country,Year,Sex,Age,Exposure,M
+country,year,sex,age,exposure,mx
 Taiwan,1970,female,0,180000,0.015389
 Taiwan,1970,female,1,186891.19,0.004465
 Taiwan,1970,female,2,183318.89,0.003064

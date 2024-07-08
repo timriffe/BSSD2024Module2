@@ -183,18 +183,63 @@ Ex |>
 ## Exercises in session
 
 1. Merge `B` and `Ex`, matching ages, but taking care that births are matched to female exposures.
+This is how I joined the data
+```{r}
+Fx <- B |> 
+  mutate(sex = "female") |> # sex is coded as total, just recode it
+  rename(births = total) |> # births column is called total, just rename it
+  # a left join, means we'll only grab exposures for 
+  # females whose ages are included in the births
+  left_join(Ex, by = join_by(sex, age)) |> 
+  mutate(Fx = births / exposure)
+```
 
-2. Calculate the GFR, which is:
+2. Calculate the General Fertility Rate, GFR, which is:
 $$ GFR = 1000 \cdot \frac{\sum_{15}^{49}B_x}{\sum_{15}^{49}E_x} $$
+```{r}
+Fx |> 
+  filter(between(age, 15, 49)) |> 
+  summarize(GFR = 1000 * sum(births)/ sum(exposure))
+```
+
 3. Make a plot of age-specific fertility rates
+
+```{r}
+Fx |> 
+  ggplot(aes(x = age, y = Fx)) +
+  geom_line() +
+  theme_minimal()
+```
 
 4. Calculate TFR:
 $$ TFR = \sum F_x$$
+where:
+$$ F_x = \frac{B_x}{E_x}$$
+
+```{r}
+Fx |> 
+  summarize(TFR = sum(Fx))
+```
+
 
 5. Calculate the mean age at childbearing:
 
-$$ MAB = \frac{\sum F_x \cdot (x + n/2)}{\sum F_x}$$
+$$ MAB = \frac{\sum F_x \cdot (x + .5)}{\sum F_x} $$
+```{r}
+Fx |> 
+  summarize(MAB1 = sum((age + .5) * Fx) / sum(Fx),
+            MAB2 = sum((age + .5) * births) / sum(births))
+```
 
+```{r}
+Fx |> 
+  select(age, births, Fx) |> 
+  pivot_longer(births:Fx, names_to = "version", values_to = "weight") |> 
+  group_by(version) |> 
+  mutate(weight = weight / sum(weight)) |> 
+  ggplot(aes(x = age, y = weight, color = version)) +
+  geom_line()
+```
 
 
 

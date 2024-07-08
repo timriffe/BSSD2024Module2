@@ -159,8 +159,41 @@ mort |>
 
 ```
 
-## a population 
+## a population pyramid
 
+```{r}
+Ex |> 
+  filter(sex != "total") |> 
+  mutate(population = if_else(sex == "male", 
+                              -exposure, 
+                              exposure)) |>
+  ggplot(aes(x = age, 
+             y = population, 
+             fill = sex)) +
+  geom_col(width = 1) +
+  theme_minimal() +
+  geom_hline(yintercept = seq(-400000, 400000, by = 100000), 
+             color = "white", linewidth = .5) +
+  geom_vline(xintercept = seq(10,100,by = 20),
+             color = "white", linewidth = .5) +
+  coord_flip()
+```
+
+
+## Exercises in session
+
+1. Merge `B` and `Ex`, matching ages, but taking care that births are matched to female exposures.
+
+2. Calculate the GFR, which is:
+$$ GFR = 1000 \cdot \frac{\sum_{15}^{49}B_x}{\sum_{15}^{49}E_x} $$
+3. Make a plot of age-specific fertility rates
+
+4. Calculate TFR:
+$$ TFR = \sum F_x$$
+
+5. Calculate the mean age at childbearing:
+
+$$ MAB = \frac{\sum F_x \cdot (x + n/2)}{\sum F_x}$$
 
 
 

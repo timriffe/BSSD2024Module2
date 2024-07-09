@@ -1,0 +1,121 @@
+---
+title: "session 2 notes"
+author: "Tim Riffe"
+date: "2024-07-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# grab the data, load tidyverse
+
+```{r}
+library(tidyverse)
+ES <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_mort.csv.gz",
+               show_col_types = FALSE)
+# ES <- read_csv("data/ES_mort.csv.gz")
+```
+The second line is for reading in the file locally, where I emphasize that we should always remember to keep the path short, and relative to our current project location.
+
+If your internet is super slow, you can increase the timeout for downloading like so:
+```{r}
+options(timeout = 1000)
+```
+This will let your machine keep trying for longer to download a file.
+
+## Compare mortality rates
+
+```{r}
+ES |> 
+  filter(year %in% c(1930,2019),
+         sex == "female") |> 
+  ggplot(aes(x = age, y = mx, color = as.factor(year))) +
+  geom_line() +
+  scale_y_log10()
+```
+
+```{r}
+ES |> 
+  filter(year %in% c(1930,2019),
+         sex == "female",
+         age < 90) |> 
+  select(year, age, mx) |> 
+  # year moves to columns here:
+  pivot_wider(names_from = year, values_from = mx) |> 
+  mutate(mx_diff = `1930` - `2019`) |> 
+  ggplot(aes(x = age, y = mx_diff)) +
+  geom_line()
+```
+
+# $q_x$ conditional death probabilities
+
+$$ q_x = \frac{m_x}{1 + (1 - a_x)m_x} $$
+
+So, the first thing we want is to transform rates to probabilities, behold the above formula. Where on earth is it from? This I encourage you to simply look up whenever you need it rather than memorizing it. I would look it up from here <https://www.mortality.org/File/GetDocument/Public/Docs/MethodsProtocolV6.pdf> or the Preston book whenever I need it. But, look at that tiny variable in the denominator $a_x$: that has to come from somewhere... 
+
+NOTE: annotate this
+```{r}
+mx_to_ax_simple <- function(mx, age, n){
+  tibble(mx,age,n) |> 
+    mutate(ax = case_when(
+      age == 0 & mx < .02012 ~ .14916 - 2.02536 * mx,
+      age == 0 & mx < .07599 ~ 0.037495 + 3.57055 * mx,
+      age == 0 & mx >= .07599 ~ 0.30663,
+      age == max(age) ~ 1 / mx,
+      TRUE ~ n / 2)) |> 
+    pull(ax)
+}
+```
+
+Now we can implement the transformation to $q_x$
+```{r}
+mx_to_qx <- function(mx, ax){
+  qx <- mx / (1 + (1 - ax) * mx)
+  return(qx)
+}
+
+
+```
+
+# survivorship: $l_x$
+
+$$ \ell_x = \prod _{t=0}^{x-1} (1 - q_t) \quad \forall x>0$$
+$$ \ell_0 = 1 $$
+
+Notes: the `cumprod()` part of this transformation is the most important part.
+```{r}
+qx_to_lx <- function(qx, radix = 1){
+  N  <- length(qx)
+  lx <- c(1, cumprod(1 - qx[-N]))
+  lx <- lx * radix
+  return(lx)
+}
+
+# usage:
+qx <-
+ ES |> 
+   group_by(sex, year) |> 
+   mutate(n = rep(1, n()),
+          ax = mx_to_ax_simple(mx, age, n),
+          qx = mx_to_qx(mx, ax)) |> 
+   filter(sex == "female",
+          year == 2000) |> 
+   pull(qx)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 I got these urls from the _raw_ button of the respective files on github:
 
-```{r, nessage = FALSE}
+```{r, message = FALSE}
 library(tidyverse)
 library(janitor)
 B <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ES_B.csv.gz",
@@ -72,12 +72,13 @@ Fx |>
 MAB <-
   Fx |> 
   group_by(year) |> 
-  summarize(MAB = sum(Fx * age) / sum(Fx) + .5)
+  summarize(MAB = sum(Fx * (age + .5)) / sum(Fx) )
 
 MAB |> 
   ggplot(aes(x = year, y = MAB)) +
   geom_line() +
-  theme_minimal()
+  theme_minimal() +
+  geom_vline(xintercept = 1939)
 ```
 
 Curious how MAB and TFR move together?

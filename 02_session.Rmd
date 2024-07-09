@@ -27,15 +27,18 @@ This will let your machine keep trying for longer to download a file.
 
 ## Compare mortality rates
 
-```{r}
+I spoke for a long time about how it's tough to compare these two mortality schedules because 1. rates are in hard-to-understand units, 2. there are 111 values per mortality schedule. We should want a reasonable summary measure (a single value), and for it to be in understandable units. Like life expectancy. Or the modal age at death. Or something like that.
+```{r, warning = FALSE}
 ES |> 
   filter(year %in% c(1930,2019),
          sex == "female") |> 
   ggplot(aes(x = age, y = mx, color = as.factor(year))) +
   geom_line() +
-  scale_y_log10()
+  scale_y_log10() +
+  theme_minimal()
 ```
 
+This second plot was just to make a point that looking at rate differences in pointless, because a value of .005 might be a very small difference or a very big difference, depending on what age we're in.
 ```{r}
 ES |> 
   filter(year %in% c(1930,2019),
@@ -48,9 +51,11 @@ ES |>
   ggplot(aes(x = age, y = mx_diff)) +
   geom_line()
 ```
+Rate ratios are also not great as the *final* value to report. They are good for getting a sense of how rate differences vary over age, relative to overall levels, BUT, again with rate ratios we lose a sense of scale. If you want to report group differences, please don't stop the exercise with rate ratios- continue converting units until you arrive at something actually intelligible. Remember also to always plot rate ratios (or ratios of any kind) with a logged axis.
 
 # $q_x$ conditional death probabilities
 
+Conditional death probabilities means the probability of dying in an interval conditional on surviving into the interval.
 $$ q_x = \frac{m_x}{1 + (1 - a_x)m_x} $$
 
 So, the first thing we want is to transform rates to probabilities, behold the above formula. Where on earth is it from? This I encourage you to simply look up whenever you need it rather than memorizing it. I would look it up from here <https://www.mortality.org/File/GetDocument/Public/Docs/MethodsProtocolV6.pdf> or the Preston book whenever I need it. But, look at that tiny variable in the denominator $a_x$: that has to come from somewhere... 
@@ -87,6 +92,8 @@ mx_to_qx <- function(mx, ax){
 
 # survivorship: $l_x$
 
+In words: to survive from birth to age 3, you need to survive from 0 to your first birthday, and then from your first to your second birthday, and then from your second to your third birthday. Each birthday you get a new set of dice to roll. Age 0 starts off with a clean initial population of 1.
+
 $$ \ell_x = \prod _{t=0}^{x-1} (1 - q_t) \quad \forall x>0$$
 $$ \ell_0 = 1 $$
 
@@ -98,14 +105,14 @@ qx_to_lx <- function(qx, radix = 1){
   lx <- lx * radix
   return(lx)
 }
-
-# usage:
-
 ```
-This is the first glance at LE that was have: it's the area under this curve, but we'd want to do a better job integrating that area.
+$l_x$ gives the first glance at LE that we have: it's the area under this curve, but we'd want to do a better job integrating that area. We tried in the session by taking $(\sum \ell_x)-.5$, and it was a really good estimate :-)
 
+From the survival curve, you can find quantiles, e.g. the median age at death. Or you can
 
 # deaths distribution $d_x$
+
+The death distribution is a probability distribution: the probability of dying at age $x$ seen from the perspective of a newborn in the synthetic population. The logic: first you need to chain the probabilities of surviving through each single age until you reach $x$ (a.k.a $\ell_x$) then subject to the death probability that age $q_x$. 
 
 $$ d_x = \ell_x \cdot q_x $$
 
@@ -115,6 +122,8 @@ Here, I went on a long tangent about the modal age at death, which is great beca
 3. you can get a time series of COHORT modal ages at death even
 
 ## $L_x$ is the person-years lived in each age group
+
+This is all about figuring out the most precise way to integrate under $\ell_x$ for each single age step. Taking a rectangle at the level of $\ell_x$ is too high, whereas a rectangle at $\ell_{x+1}$ is too low a value. In this formula, if $a_x = .5$, it amounts to the same thing as $(\ell_x + \ell_{x+1})/2$
 
 $$ L_x = \ell_x - (1 - a_x)d_x \quad \forall x <\omega$$
 $$ L_\omega = d_\omega \cdot a_\omega $$
@@ -147,6 +156,8 @@ Lx_to_Tx <- function(Lx){
 Now we're ready to calculate full lifetables
 $$ e_x = \frac{T_x}{\ell_x}$$
 
+This code chunk is the final version of the code chunk, which we had been building and executing in order to visualize lifetable functions and calculate life expectancy estimates at different levels of approximation.
+
 ```{r}
 LT <- 
  ES |> 
@@ -166,7 +177,7 @@ LT <-
 
 # Exercises
 
-1. make plot of $e_0$ over time
+1. make a plot of $e_0$ over time
 
 ```{r}
 LT |> 
@@ -176,14 +187,14 @@ LT |>
   theme_minimal()
 ```
 
-
 2. make plot of $M$ (modal age at death), be sure to filter out ages < 10 for this.
 
 ```{r}
 LT |> 
   filter(age > 10) |> 
   group_by(sex, year) |> 
-  summarize(M = age[dx == max(dx)] + ax[dx == max(dx)]) |> 
+  summarize(M = age[dx == max(dx)] + ax[dx == max(dx)],
+            .groups = "drop") |> 
   ggplot(aes(x = year, y = M, color = sex)) +
   geom_step() +
   theme_minimal()

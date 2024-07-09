@@ -70,9 +70,16 @@ mx_to_ax_simple <- function(mx, age, n){
 ```
 
 Now we can implement the transformation to $q_x$
+
+We have more details to attend to in this function!
 ```{r}
 mx_to_qx <- function(mx, ax){
   qx <- mx / (1 + (1 - ax) * mx)
+  # NEW I
+  N <- length(qx)
+  qx[N] <- 1
+  # NEW II
+  qx[qx > 1] <- 1
   return(qx)
 }
 

@@ -82,8 +82,6 @@ mx_to_qx <- function(mx, ax){
   qx[qx > 1] <- 1
   return(qx)
 }
-
-
 ```
 
 # survivorship: $l_x$
@@ -101,16 +99,86 @@ qx_to_lx <- function(qx, radix = 1){
 }
 
 # usage:
-qx <-
+
+```
+This is the first glance at LE that was have: it's the area under this curve, but we'd want to do a better job integrating that area.
+
+
+# deaths distribution $d_x$
+
+$$ d_x = \ell_x \cdot q_x $$
+
+Here, I went on a long tangent about the modal age at death, which is great because 
+1. it's more stable than $e_0$ (life expectancy at birth)
+2. the data requirements for seeings it are far less strict, which means
+3. you can get a time series of COHORT modal ages at death even
+
+## $L_x$ is the person-years lived in each age group
+
+$$ L_x = \ell_x - (1 - a_x)d_x \quad \forall x <\omega$$
+$$ L_\omega = d_\omega \cdot a_\omega $$
+
+```{r}
+lxdx_to_Lx <- function(lx,dx,ax){
+  Lx    <- lx - (1 - ax) * dx
+  N     <- length(lx)
+  Lx[N] <- ax[N] * lx[N]
+  return(Lx)
+}
+```
+
+# Tx Total years lived above x
+
+$T_x$ is an instrumental lifetable column, needed here and there, but not something you look at for demographic insight.
+
+$$ T_x = \sum_x^\omega L_x$$
+```{r}
+Lx_to_Tx <- function(Lx){
+  Tx <- 
+    Lx |> 
+    rev() |> 
+    cumsum() |> 
+    rev() 
+  return(Tx)
+}
+```
+
+Now we're ready to calculate full lifetables
+$$ e_x = \frac{T_x}{\ell_x}$$
+
+```{r}
+ES |> 
+  filter(is.na(mx))
+
+
  ES |> 
    group_by(sex, year) |> 
    mutate(n = rep(1, n()),
+          # add note here
+          mx = if_else(is.na(mx), .5, mx),
           ax = mx_to_ax_simple(mx, age, n),
-          qx = mx_to_qx(mx, ax)) |> 
-   filter(sex == "female",
-          year == 2000) |> 
-   pull(qx)
+          qx = mx_to_qx(mx, ax),
+          lx = qx_to_lx(qx),
+          dx = lx * qx,
+          Lx = lxdx_to_Lx(lx, dx, ax),
+          Tx = Lx_to_Tx(Lx),
+          ex = Tx / lx) 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -63,6 +63,7 @@ mx_to_ax_simple <- function(mx, age, n){
       age == 0 & mx < .02012 ~ .14916 - 2.02536 * mx,
       age == 0 & mx < .07599 ~ 0.037495 + 3.57055 * mx,
       age == 0 & mx >= .07599 ~ 0.30663,
+      age == max(age) & mx == 0 ~ .5,
       age == max(age) ~ 1 / mx,
       TRUE ~ n / 2)) |> 
     pull(ax)
@@ -147,10 +148,7 @@ Now we're ready to calculate full lifetables
 $$ e_x = \frac{T_x}{\ell_x}$$
 
 ```{r}
-ES |> 
-  filter(is.na(mx))
-
-
+LT <- 
  ES |> 
    group_by(sex, year) |> 
    mutate(n = rep(1, n()),
@@ -166,6 +164,43 @@ ES |>
 ```
 
 
+# Exercises
+
+1. make plot of $e_0$ over time
+
+```{r}
+LT |> 
+  filter(age == 0) |> 
+  ggplot(aes(x = year, y = ex, color = sex)) +
+  geom_line() +
+  theme_minimal()
+```
+
+
+2. make plot of $M$ (modal age at death), be sure to filter out ages < 10 for this.
+
+```{r}
+LT |> 
+  filter(age > 10) |> 
+  group_by(sex, year) |> 
+  summarize(M = age[dx == max(dx)] + ax[dx == max(dx)]) |> 
+  ggplot(aes(x = year, y = M, color = sex)) +
+  geom_step() +
+  theme_minimal()
+```
+
+3. find a mortality shock year from (1), and compare it's $\ell_x$ and $d_x$ with those of a typical year.
+
+```{r, warning = FALSE}
+LT |> 
+  filter(year %in% c(1917,1918),
+         sex == "female",
+         age > 10) |> 
+  ggplot(aes(x = age, y = dx, color = as.factor(year))) +
+  geom_point() +
+  geom_smooth(span = .15) +
+  theme_minimal()
+```
 
 
 

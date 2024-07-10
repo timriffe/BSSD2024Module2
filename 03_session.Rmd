@@ -96,6 +96,196 @@ dat |>
   ggplot(aes(x = year, y = ASDR, color = country)) +
   geom_line()
 ```
+Now we see long term decrease in mortality rates. At least the direction of change is as we expect, but we still might not be so certain about the speed, the level, or much else.
+
+# Decomposition
+
+Where $I$ is the thing we calculate, and $\theta$ is everything we need to calculate it. $f()$ is the function that maps parameters to the index.
+$$ I = f(\theta)$$
+
+We denote the difference in the index we calulate (e.g. CDR) using $\Delta$
+$$ \Delta = I^2 - I^1$$
+
+Here, $\delta$ is the contribution from each parameter difference to the observed difference in $I$, such that they add up to $\Delta$
+$$ \delta = \mathcal{D}(f(), \theta^2, \theta^1)$$
+
+Fancy D is a generic name for a decomposition method. Decompositions should be additive in the sense that:
+$$ \Delta = \sum \delta$$
+
+# Kitagawa
+
+$$ \Delta = \Delta^{C} + \Delta^{m}$$
+
+The structure effect $\Delta^C$ is the difference in structure (weights) times the average mortality rates (thing being weighted).
+
+The _rate_ effect (thing being weighted) is the difference in rates times the average structure.
+
+$$ \Delta^C = \sum (C_x^2 - C_x^1) \cdot \overline m_x$$ 
+$$ \Delta^m = \sum (m_x^2 - m_x^1) \cdot \overline{C_x}$$
+
+```{r}
+kit <- 
+  dat |> 
+  filter(year == 2000, 
+         sex == "total") |> 
+  group_by(country) |> 
+  mutate(Cx = exposure / sum(exposure),
+         country = substr(country,1,1) |> tolower()) |> 
+  select(-exposure) |> 
+  pivot_wider(names_from = country,
+              values_from = c(mx, Cx)) |> 
+  
+  # This is the Kitagawa method:
+  mutate(st_effect = (Cx_j - Cx_t) * (mx_t + mx_j) / 2,
+         mx_effect = (mx_j - mx_t) * (Cx_t + Cx_j) / 2)
+```
+
+$$ \Delta^C = \sum (C_x^2 - C_x^1) \cdot \overline m_x$$
+$$ \Delta^m = \sum (m_x^2 - m_x^1) \cdot \overline{C_x}$$
+Check the sums:
+```{r}
+kit |> 
+  summarize(st_effect = 1000 * sum(st_effect, na.rm = TRUE),
+            mx_effect = 1000 * sum(mx_effect, na.rm = TRUE),
+            CDR_j = 1000 * sum(Cx_j * mx_j, na.rm = TRUE),
+            CDR_t = 1000 * sum(Cx_t * mx_t, na.rm = TRUE),
+            CDR_diff = CDR_j - CDR_t) |> 
+  mutate(check = st_effect + mx_effect)
+```
+
+Age patterns
+```{r}
+kit |> 
+  ggplot(aes(x = age, y = mx_effect)) +
+  geom_line()
+```
+
+Note: I think the only age pattern here that is worth directly interpreting is the one for mortality rates, not the one for age structure. For age structure the interesting thing is the sum. I'm afraid it'd take a whole hour to explain why this is, so I encourage you to take my word for it. Note: there is no paper that comes to this conclusion, it's just something I've concluded but not published.
+
+# Another kind of decomposition
+
+$$ \delta = \mathcal{D}(f(), \theta^2, \theta^1)$$
+
+```{r}
+my_function <- function(theta){
+  # step 1
+  # unpack theta into usable pieces
+  
+  # step 2
+  # calculate the index using those pieces
+  
+  # 3 return the index
+}
+```
+
+```{r, eval = FALSE}
+library(DemoDecomp)
+horiuchi(func = my_function,
+         pars1 = c(big, fat, vector, of, parameters, first, version),
+         pars2 = c(big, fat, vector, of, parameters, second, version))
+```
+
+
+This function takes a single vector of mx and converts it to an approximate life expectancy at birth, assuming we have continuous data. For single age data, the error is quite small.
+```{r}
+mx_to_e0_quick <- function(mx){
+  sum(exp(-cumsum(c(0,mx)))) - .5
+}
+# dat |> 
+#   filter(sex == "total",
+#          year == 2000,
+#          country == "Japan") |> 
+#   pull(mx) |> 
+#   mx_to_e0_quick()
+
+# dat |> 
+#   filter(sex == "total",
+#          year == 2000,
+#          country == "Japan") |> 
+#   LT_tidy() |> 
+#   filter(age == 0) |> 
+#   pull(ex)
+
+```
+
+# usage:
+Let's compare e0 between Japan and Taiwan in 2000
+
+```{r}
+dec <- 
+  dat |> 
+  mutate(mx = if_else(is.na(mx),.5,mx)) |> 
+  select(-exposure) |> 
+  mutate(country = substr(country, 1, 1) |> tolower()) |> 
+  pivot_wider(names_from = country, values_from = mx) |> 
+  group_by(year,sex) |> 
+  mutate(delta = horiuchi(mx_to_e0_quick, `t`, j, N = 10))
+
+dec |> 
+  group_by(year, sex) |> 
+  summarize(Delta = sum(delta))
+```
+
+
+```{r}
+dec |> 
+  filter(year %in% c(1970, 2019),
+         sex != "total") |> 
+  ggplot(aes(x = age, y = delta, color = sex, linetype = as.factor(year))) +
+  geom_line()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

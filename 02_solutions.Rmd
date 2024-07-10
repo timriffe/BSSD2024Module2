@@ -38,7 +38,7 @@ CZLT <-
 CZLT |> 
   filter(age == 0) |> 
   select(year, ex_bssd = ex, ex_hmd) |> 
-  pivot_longer(ex_bssd:ex_hmd, 
+  pivot_longer(c(ex_bssd,ex_hmd), 
                names_to = "variant", 
                values_to = "ex") |> 
   ggplot(aes(x = year, y = ex, color = variant, lty = variant)) +
@@ -121,12 +121,17 @@ CZLT |>
 
 I see rapid declines in infant mortality coupled with increases in $e_0$, but the increases in $e_0$ are sustained even after there is (relatively) little progress left to made in infant mortality. The relationship was log-linear until $e_0$ hit 74, but thereafter $e_0$ kept increasing even as $q_0$ was stagnant (but low).
 ```{r}
+library(colorspace)
+# hcl_palettes(plot = TRUE)
+
 CZLT |> 
   filter(age == 0) |> 
   ggplot(aes(x = ex, y = qx, color = year)) +
   geom_point() +
-  theme_minimal() #+
-  #scale_y_log10()
+  theme_minimal() +
+  scale_y_log10() +
+  #scale_color_continuous(high = "red", low = "#C5111150")
+  scale_color_binned_sequential("ag_Sunset", rev = FALSE)
 ```
 
 
@@ -137,7 +142,7 @@ There was no improvement among adults until $q_0$ dropped to around .015? Then a
 CZLT |> 
   group_by(year) |> 
   summarize(q_adult = sum(dx[between(age, 15, 64)]) / lx[age == 15],
-            q_infant= qx[1]) |> 
+            q_infant = qx[1]) |> 
   ggplot(aes(x = q_infant, y = q_adult, color = year)) +
   geom_point() +
   theme_minimal()

@@ -1,0 +1,148 @@
+---
+title: "session 2 exercise solutions"
+author: "Tim Riffe"
+date: "2024-07-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Choose a country in the HMD and calculate its life table for at least 20 consecutive years. 
+
+Here I grab male lifetables for Czechia using the `HMDHFDPlus` package; note I keep my login credentials stored in a funny place so that I can retrieve them like this and not type them directly into the script. I'll throw out all columns except year, age, mx, and ex (to compare).
+```{r}
+library(HMDHFDplus)
+library(tidyverse)
+library(janitor)
+CZ <- readHMDweb("CZE",
+           "mltper_1x1",
+           username = Sys.getenv("us"),
+           password = Sys.getenv("pw")) |> 
+  select(year = Year, age = Age, mx, ex_hmd = ex)
+```
+Now let's calculate using a lifetable function based on session 2 code:
+```{r}
+source("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/02_lifetables.R")
+CZLT <-
+  CZ |> 
+  group_by(year) |> 
+  group_modify(~LT_tidy(data = .x)) |> 
+  ungroup()
+```
+
+# 2. Compare your results with results with those in the HMD.
+
+```{r}
+CZLT |> 
+  filter(age == 0) |> 
+  select(year, ex_bssd = ex, ex_hmd) |> 
+  pivot_longer(ex_bssd:ex_hmd, 
+               names_to = "variant", 
+               values_to = "ex") |> 
+  ggplot(aes(x = year, y = ex, color = variant, lty = variant)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Looks like we're very close to HMD published values")
+```
+Maybe if we plot a time series of differences then we'll see something?
+```{r}
+CZLT |> 
+  filter(age == 0) |> 
+  mutate(e0_diff = ex - ex_hmd) |> 
+  ggplot(aes(x = year, y = e0_diff)) +
+  geom_hline(yintercept = 0, color = "red", lty = 2) +
+  geom_point() +
+  theme_minimal()
+```
+For reference, .005 of a year is less than 2 days
+```{r}
+.005 * 365.25
+```
+
+# 3. Plot ${}_nm_x$, ${}_nl_x$ and ${}_nd_x$ for the first and last year you chose. How did the different indicators change over time?
+
+```{r}
+options(scipen=8)
+CZLT |> 
+  filter(year %in% c(min(year), 2019)) |> 
+  ggplot(aes(x = age, y = mx, color = as.factor(year))) +
+  geom_line() +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(title = "Each age is doing better")
+```
+
+```{r}
+CZLT |> 
+  filter(year %in% c(2019, min(year))) |> 
+  ggplot(aes(x = age, y = dx, color = as.factor(year))) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "The infant mode shrunk; the older age mode shifted",
+       caption = "far less premature mortality in 2021")
+```
+
+```{r}
+CZLT |> 
+  filter(year %in% c(2019, min(year))) |> 
+  ggplot(aes(x = age, y = lx, color = as.factor(year))) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Looking sideways, you can see that most quantiles pushed out by at least 10 years")
+```
+
+
+# 4. Plot $e_0$ and $e_{65}$ over time. How did life expectancy change over time?
+
+```{r}
+CZLT |> 
+  filter(age == 0) |> 
+  ggplot(aes(x = year, y = ex)) +
+  geom_line() +
+  theme_minimal() +
+  annotate("text", x = 1951,y= 65, angle = 60,label = "very fast improvment") +
+  annotate("text", x = 1975, y = 68, label = "3 decades of stagnation") +
+  annotate("text", x = 2000, y = 72.5, angle = 45, label = "3 decades improving at 1/4 year per year")
+```
+```{r}
+CZLT |> 
+  filter(age == 65) |> 
+  ggplot(aes(x = year, y = ex)) +
+  geom_line() +
+  theme_minimal() +
+  annotate("text",x=1970,y=12.5,label = "4 decades of stagnation in older ages") +
+  annotate("text", 1999.5,14,label = "steady improvment ~ 1.6 months / yr",angle=55)
+```
+
+
+# 5. Make a scatterplot of $e_0$ vs $q_0$, what do you see?
+
+I see rapid declines in infant mortality coupled with increases in $e_0$, but the increases in $e_0$ are sustained even after there is (relatively) little progress left to made in infant mortality. The relationship was log-linear until $e_0$ hit 74, but thereafter $e_0$ kept increasing even as $q_0$ was stagnant (but low).
+```{r}
+CZLT |> 
+  filter(age == 0) |> 
+  ggplot(aes(x = ex, y = qx, color = year)) +
+  geom_point() +
+  theme_minimal() #+
+  #scale_y_log10()
+```
+
+
+# 6. Make a scatterplot of ${}_{50}q_{15}$ (the probability of death by age 65 given survival to age 15) vs $q_0$, what do you see?
+
+There was no improvement among adults until $q_0$ dropped to around .015? Then adjults made fast imrovements and infants hardly any.
+```{r}
+CZLT |> 
+  group_by(year) |> 
+  summarize(q_adult = sum(dx[between(age, 15, 64)]) / lx[age == 15],
+            q_infant= qx[1]) |> 
+  ggplot(aes(x = q_infant, y = q_adult, color = year)) +
+  geom_point() +
+  theme_minimal()
+```
+
+
+
+

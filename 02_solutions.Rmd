@@ -132,7 +132,7 @@ CZLT |>
 
 # 6. Make a scatterplot of ${}_{50}q_{15}$ (the probability of death by age 65 given survival to age 15) vs $q_0$, what do you see?
 
-There was no improvement among adults until $q_0$ dropped to around .015? Then adjults made fast imrovements and infants hardly any.
+There was no improvement among adults until $q_0$ dropped to around .015? Then adults made fast improvements and infants hardly any.
 ```{r}
 CZLT |> 
   group_by(year) |> 

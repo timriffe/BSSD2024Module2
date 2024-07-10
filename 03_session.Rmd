@@ -1,0 +1,117 @@
+---
+title: "session 3 notes"
+author: "Tim Riffe"
+date: "2024-07-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Standardization
+
+Take the CDR as our _straw man_:
+
+$$ CDR = \frac{P_x \cdot m_x}{\sum P_x}$$
+ 
+ Where P is population and m is mortality rates
+ 
+ $$ CDR = \sum C_x \cdot m_x$$
+ here C is structure, summing to 1.
+ 
+ 
+
+The problem with using $C_x$ observed in a moment is that it is fully a legacy of past mortality, fertility, and migration, and the relative components thereof are difficult to separate, and in any case they are in the past. The mortality on the other hand is in the present. We would like to compare the mortality in a given moment, and separated from its past.
+
+Different kinds of comparisons:
+1. If comparing populations in a given period, then it's justified to choose a standard that is somehow in the middle of all the $C_x$ values that are observed. For example, just take the mean, or the overall aggregate.
+
+But, shared features of the individual population structures, such as particularly large cohorts, will move over time, and so comparisons over time will become less usable.
+
+2. comparing over time is quite tricky, because you can't have any cohort features getting in the way. So you'd need to establish a shared standard. For this, it might make sense to use the average survival function covering the whole period, but beware that this necessarily will down-weight older ages. A third possibility would be to modify the survival curve according to some population growth rate.
+
+
+# example
+
+```{r}
+library(tidyverse)
+dat <- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/JPNTWN.csv", show_col_types = FALSE)
+```
+
+take a look: We would conclude that mortality has been getting worse in both countries, but we know it's not true.
+```{r}
+dat |> 
+  filter(sex == "total") |> 
+  group_by(country, year) |> 
+  mutate(Cx = exposure / sum(exposure)) |> 
+  summarize(CDR = 1000 * sum(Cx * mx, na.rm = TRUE)) |> 
+  ggplot(aes(x = year, y = CDR, color = country)) +
+  geom_line() +
+  theme_minimal()
+```
+
+We know a lot here is because of age structure, so we could just swap age structures and see what happens:
+
+```{r}
+options(scipen = 2)
+dat |> 
+  filter(sex == "total") |> 
+  group_by(country, year) |> 
+  mutate(Cx = exposure / sum(exposure)) |> 
+  select( -exposure) |> 
+  pivot_wider(names_from = country,
+              values_from = c(Cx, mx)) |> 
+  summarize(CDR_j = sum(Cx_Japan * mx_Japan, na.rm = TRUE),
+            CDR_t = sum(Cx_Taiwan * mx_Taiwan, na.rm = TRUE),
+            CDR_jt = sum(Cx_Taiwan * mx_Japan, na.rm = TRUE),
+            CDR_tj = sum(Cx_Japan * mx_Taiwan, na.rm = TRUE)) |> 
+  pivot_longer(-year, 
+               names_to = "variant", 
+               values_to = "CDR", 
+               names_prefix = "CDR_") |> 
+  ggplot(aes(x = year, y = CDR, color = variant)) +
+  geom_line()
+  
+```
+
+Notes: at a given point in time, the points are interesting to compare, but note you have to make multiple comparisons to learn something. The time series still gives the same trend due to ageing populations.
+
+```{r}
+dat |> 
+  filter(sex == "total") |> 
+  group_by(country, year) |> 
+  mutate(Cx = exposure / sum(exposure)) |> 
+  # ggplot(aes(x = age, y = Cx, color = country, group = interaction(country, year), alpha = year)) +
+  # geom_line()
+  ungroup() |> 
+  group_by(age) |> 
+  mutate(Cx = mean(Cx, na.rm = TRUE)) |> 
+  ungroup() |> 
+  # ggplot(aes(x = age, y = Cx)) +
+  # geom_line()
+  group_by(year, country) |> 
+  summarize(ASDR = sum(Cx * mx, na.rm = TRUE),
+            .groups = "drop") |> 
+  ggplot(aes(x = year, y = ASDR, color = country)) +
+  geom_line()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

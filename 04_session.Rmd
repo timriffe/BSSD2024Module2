@@ -239,6 +239,54 @@ proj <-
   mutate(pop = c((Les %^% h[1]) %*% p0 ))
 ```
 
+# Exercises
+
+1. find the CGR 200 years in the future, or the geometric one
+
+```{r}
+proj |> 
+  group_by(h) |> 
+  summarize(pop = sum(pop)) |> 
+  mutate(GGR = (lead(pop) - pop) / pop,
+         CGR = (lead(pop) - pop) / (lead(pop) + pop)/2) |> 
+  ggplot(aes(x = h, y = CGR)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "geometric growth rate projection according to baseline demographic conditions")
+```
+
+2. Make a plot show the (scaled) population structure in 10-year intervals, where the color of each line maps to h.
+
+```{r}
+proj |> 
+  filter((h %% 20) == 0) |> 
+  group_by(h) |> 
+  mutate(Cx = pop / sum(pop)) |> 
+  ggplot(aes(x = age, y = Cx)) +
+  geom_line() +
+  theme_minimal() +
+  facet_wrap(~h)
+```
+
+
+
+I will try now to derive the long-term growth rate directly, hmm
+```{r}
+head(LT)
+Lx <- LT |> 
+  filter(sex == "female") |> 
+  pull(Lx)
+(NRR <- sum(Fx * PF * Lx))
+
+# Rough guess # 1
+log(NRR) / 33
+# 33 is a guess at the MAB, where "births" in the stable population are used to weight age. It's different from asfr-weighted MAB.
+
+# Rough guess # 2
+(eigen(Les)$values[1] |> Re() ) - 1
+
+
+```
 
 
 

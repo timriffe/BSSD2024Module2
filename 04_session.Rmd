@@ -91,6 +91,136 @@ LT |>
   theme_minimal()
 ```
 
+# Let's gather what we need in order to do a population projection
+
+1. Calculate ASFR (births / exposure)
+```{r}
+expos <-
+  ES2014 |> 
+  filter(sex == "female") |> 
+  mutate(exposure = (pop1 + pop2) / 2) |> 
+  select(age, exposure)
+asfr <-
+  B |> 
+  select(-sex) |> 
+  right_join(expos, by = join_by(age)) |> 
+  arrange(age) |> 
+  mutate(births = if_else(is.na(births),0,births),
+         asfr = births / exposure) |> 
+  select(age, asfr)
+
+# asfr |> 
+#   ggplot(aes(x = age, y = asfr)) +
+#   geom_line()
+```
+
+2. Calculate Survival probabilities
+
+$$ S_x = \frac{L_{x+1}}{L_x}$$
+
+```{r}
+Sx <-
+  LT |> 
+  filter(sex == "female") |> 
+  select(age, Lx) |> 
+  mutate(Sx = lead(Lx) / Lx) |> # changed mind here; removed 0 padding
+  filter(!is.na(Sx)) # NEW
+```
+
+These are what is used to survive the members of one age to the next age one year in the future.
+
+```{r}
+L <-
+  Sx |> 
+  select(-Lx) |> 
+  mutate(age_to = age + 1) |> 
+  pivot_wider(names_from = age,
+              values_from = Sx,
+              values_fill = 0) |> 
+  column_to_rownames("age_to") |> 
+  as.matrix()
+```
+
+Now let's pad this matrix with a row of 0s on top and a column of 0s on the right:
+
+```{r}
+Les <-
+  0 |> 
+  rbind(L) |> 
+  cbind(0)
+# cbind(rbind(0, L), 0)
+```
+
+If you want to let the open age group linger around (not permanently) then put this in this in the lower right-hand corner:
+
+$$ \frac{T_\omega}{T_{\omega - 1}}$$ 
+```{r, eval = FALSE}
+Tx_closeout <-
+LT |> 
+  filter(sex == "female",
+  age >= 109) |> 
+  pull(Tx)
+
+Les[nrow(Les), ncol(Les)] <- Tx_closeout[2] / Tx_closeout[1]
+```
+
+# Fertility
+
+Now, we have to account for fertility somehow, noting:
+1. age groups need to be blended
+2. we need to discount for the survival (in the age group) of mothers
+3. we need to discount for girl births only
+4. we need to discount for the survival of infants to age 0 on Dec 31.
+
+Where does this come from?
+```{r}
+Fx  <- asfr$asfr
+PF  <- 1 - .53 # Pawel's guess or preference
+.4886 # Ken Wachter's favorite value for PF
+SRB <- 1.05 # common perception
+PF  <- 1 / (1 + SRB)
+```
+PF turns out to be quite important for this family of model, remember that
+
+```{r}
+L0 <- LT |> 
+  filter(sex == "female",
+         age == 0) |> 
+  pull(Lx)
+
+sx <-
+  Sx |> 
+  pull(Sx)
+sx <- c(sx,0)
+
+top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
+```
+
+# Now impute this row into the Leslie matrix
+
+First index is rows, second index is columns
+```{r}
+Les[1, ] <- top_row
+```
+
+```{r}
+N <- 
+  P |> 
+  filter(sex == "female") |> 
+  pull(pop2)
+
+dim(Les) <- c(111,111)
+
+str(Les)
+Les %*% N
+```
+
+
+
+
+
+
+
 
 
 

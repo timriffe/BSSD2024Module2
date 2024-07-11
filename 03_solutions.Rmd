@@ -14,13 +14,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(HMDHFDplus)
+
+# getHMDitemavail("IRL") |> View()
+
 E <- readHMDweb("IRL","Exposures_1x1", 
                 username = Sys.getenv("us"),
                 password = Sys.getenv("pw"))
 
 Cx <-
   E |> 
-  filter(Year %in% c(1950, 2019)) |> 
+  filter(Year %in% c(1970, 2019)) |> 
   select(year = Year, age = Age, Cx = Total) |> 
   group_by(year) |> 
   mutate(Cx = Cx / sum(Cx)) |> 
@@ -32,7 +35,7 @@ LT <- readHMDweb("IRL","bltper_1x1",
                 username = Sys.getenv("us"),
                 password = Sys.getenv("pw"))
 mx <- LT |> 
-  filter(Year %in% c(1950, 2019)) |> 
+  filter(Year %in% c(1970, 2019)) |> 
   select(year = Year, age = Age, mx) |> 
   pivot_wider(names_from = year,
               values_from = mx,
@@ -40,6 +43,7 @@ mx <- LT |>
 
 dat <- 
   left_join(mx, Cx, by = join_by(age))
+# dat |> View()
 ```
 
 
@@ -65,9 +69,11 @@ CDR_diff <- function(Cx1, mx1, Cx2, mx2){
   Cxm <- (Cx1 + Cx2) / 2
   mxm <- (mx1 + mx2) / 2
   
+  # diffs
   Cxd <- (Cx2 - Cx1)
   mxd <- (mx2 - mx1)
   
+  # kitagawa calc
   Cx_effect <- Cxd * mxm
   mx_effect <- mxd * Cxm
   
@@ -85,8 +91,8 @@ CDR_diff <- function(Cx1, mx1, Cx2, mx2){
 2) Calculate the age-specific rate effect and total composition effect of the difference.
 
 ```{r}
-dec <- CDR_diff(Cx1 = dat$Cx1950,
-         mx1 = dat$mx1950,
+dec <- CDR_diff(Cx1 = dat$Cx1970,
+         mx1 = dat$mx1970,
          Cx2 = dat$Cx2019,
          mx2 = dat$mx2019)
 # structure
@@ -108,7 +114,7 @@ Improving mortality rates would have made the CDR decrease by about 10/1000, esp
 source("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/02_lifetables.R")
 LT_again<-
   LT |> 
-  filter(Year %in% c(1950,2019)) |> 
+  filter(Year %in% c(1970,2019)) |> 
   select(year = Year, age = Age, mx) |> 
   group_by(year) |> 
   group_modify(~LT_tidy(data = .x))
@@ -127,7 +133,7 @@ arr <-
   pivot_wider(names_from = year,
               values_from = mx,
               names_prefix ="mx") |> 
-  mutate(delta = arriaga(mx1 = mx1950, mx2 = mx2019))
+  mutate(delta = arriaga(mx1 = mx1970, mx2 = mx2019))
 
 sum(arr$delta)
 ```

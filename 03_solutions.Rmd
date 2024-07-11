@@ -1,0 +1,159 @@
+---
+title: "session 3 exercise solutions"
+author: "Tim Riffe"
+date: "2024-07-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data prep
+
+```{r}
+library(tidyverse)
+library(HMDHFDplus)
+E <- readHMDweb("IRL","Exposures_1x1", 
+                username = Sys.getenv("us"),
+                password = Sys.getenv("pw"))
+
+Cx <-
+  E |> 
+  filter(Year %in% c(1950, 2019)) |> 
+  select(year = Year, age = Age, Cx = Total) |> 
+  group_by(year) |> 
+  mutate(Cx = Cx / sum(Cx)) |> 
+  pivot_wider(names_from = year,
+              values_from = Cx,
+              names_prefix = "Cx")
+
+LT <- readHMDweb("IRL","bltper_1x1",
+                username = Sys.getenv("us"),
+                password = Sys.getenv("pw"))
+mx <- LT |> 
+  filter(Year %in% c(1950, 2019)) |> 
+  select(year = Year, age = Age, mx) |> 
+  pivot_wider(names_from = year,
+              values_from = mx,
+              names_prefix = "mx")
+
+dat <- 
+  left_join(mx, Cx, by = join_by(age))
+```
+
+
+
+## Exercise 1 {-}
+
+1) Create a function for calculating the CDR, standardized death rate (direct) and the Kitagawa decomposition. 
+
+```{r}
+CDR_diff <- function(Cx1, mx1, Cx2, mx2){
+  Cx1  <- Cx1 / sum(Cx1)
+  Cx2  <- Cx2 / sum(Cx2)
+  
+  # both CDR values
+  CDR1 <- sum(Cx1 * mx1)
+  CDR2 <- sum(Cx2 * mx2)
+  
+  # direct standardizations, both ways
+  CDR12 <- sum(Cx2 * mx1)
+  CDR21 <- sum(Cx1 * mx2)
+  
+  # means
+  Cxm <- (Cx1 + Cx2) / 2
+  mxm <- (mx1 + mx2) / 2
+  
+  Cxd <- (Cx2 - Cx1)
+  mxd <- (mx2 - mx1)
+  
+  Cx_effect <- Cxd * mxm
+  mx_effect <- mxd * Cxm
+  
+  return(
+    list(CDR1 = CDR1,
+         CDR2 = CDR2,
+         CDR12 = CDR12,
+         CDR21 = CDR21,
+         Cx_effect = Cx_effect,
+         mx_effect = mx_effect))
+}
+```
+
+
+2) Calculate the age-specific rate effect and total composition effect of the difference.
+
+```{r}
+dec <- CDR_diff(Cx1 = dat$Cx1950,
+         mx1 = dat$mx1950,
+         Cx2 = dat$Cx2019,
+         mx2 = dat$mx2019)
+# structure
+1000*sum(dec$Cx_effect)
+1000*sum(dec$mx_effect)
+plot(dec$mx_effect)
+```
+
+
+3) What factors allowed the CDR to decrease (or increase) over time?
+
+Improving mortality rates would have made the CDR decrease by about 10/1000, especially infant mortality and rates between ages 60 and 90, whereas an older population pused in the opposite direction, and would have increased the CDR by almost 4/1000 net of rates.
+
+## Exercise 2 {-}
+
+1) Calculate the life table from these two years.
+
+```{r}
+source("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/02_lifetables.R")
+LT_again<-
+  LT |> 
+  filter(Year %in% c(1950,2019)) |> 
+  select(year = Year, age = Age, mx) |> 
+  group_by(year) |> 
+  group_modify(~LT_tidy(data = .x))
+
+```
+
+
+3) Calculate the age-specific contributions for the change in life expectancy over time using the _directional_ Arriaga method.
+
+I'm going to cheat and use the package shown in the handout :-)
+```{r}
+library(coddecomp)
+arr <-
+  LT_again |> 
+  select(year, age, mx) |> 
+  pivot_wider(names_from = year,
+              values_from = mx,
+              names_prefix ="mx") |> 
+  mutate(delta = arriaga(mx1 = mx1950, mx2 = mx2019))
+
+sum(arr$delta)
+```
+
+4) Plot and interpret the results.
+
+Infant mortality improvements were responsible for over 3 years of the 16.8 total increase in life expectancy, but the other contributions are rather spread out and harder to see.
+```{r}
+arr |> 
+  ggplot(aes(x = age, y = delta)) +
+  geom_line() +
+  theme_minimal()
+```
+
+I'll group the data to 10-year age groups and see if this helps see the pattern:
+
+```{r}
+arr |> 
+  mutate(age = age - age %% 10) |> 
+  group_by(age) |> 
+  summarize(delta = sum(delta)) |> 
+  ggplot(aes(x = age, y = delta)) +
+  geom_step() +
+  theme_minimal()
+```
+From this plot we see that all decade of the lifecourse contributed to the 16.8 year increase, most of them more than 1 year: improvements in 20s, 30s,40s, and 80s contributed a year each. Improvements between 50 and 79 added 2+ years per decade of the lifecourse. Children < 10 added 4+ years, most of this coming from infants.
+
+Improvements in older ages have more impact as survival into older ages increases. That is, the mass of improvements centered on age 60, was largely enabled by the improvements below age 10. As a precondition.
+

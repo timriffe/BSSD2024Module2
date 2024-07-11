@@ -203,18 +203,41 @@ First index is rows, second index is columns
 Les[1, ] <- top_row
 ```
 
+How to project 1 year using this matrix
 ```{r}
 N <- 
   P |> 
   filter(sex == "female") |> 
   pull(pop2)
 
-dim(Les) <- c(111,111)
-
-str(Les)
-Les %*% N
+# plot(0:110, N, type = 'l')
+# lines(0:110, c(Les %*% N), col = "blue")
 ```
 
+# Let's do a longer-term population projection
+
+To carry the population over longer time horizons, you can take matrix powers. See below: we can keep multiplying the Leslie matrix into the output of the previous multiplication h times, or we could just raise the Leslie matrix to the hth power. Using a matrix exponential. 
+```{r, eval = FALSE}
+Les %*% (Les %*% (Les %*% N))
+
+# install.packages("expm")
+library(expm)
+(Les %^% 3) %*% N
+```
+
+To do a longer run and filled-out population projection, you can set it up like so:
+```{r}
+horizon <- tibble(h = 0:200)
+
+proj <-
+  P |> 
+  filter(sex == "female") |> 
+  select(year, age, p0 = pop2) |> 
+  cross_join(horizon) |> 
+  arrange(h, age) |> 
+  group_by(h) |> 
+  mutate(pop = c((Les %^% h[1]) %*% p0 ))
+```
 
 
 

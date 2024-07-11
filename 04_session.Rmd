@@ -193,7 +193,16 @@ sx <-
   pull(Sx)
 sx <- c(sx,0)
 
+# induce narrow fertility:
+TFR <- sum(Fx)
+
+# second asfr schedule is meant to be narrower, to make a point
+# about wave dissipation
+Fx2 <- TFR * (Fx^2) / sum(Fx^2)
+
 top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
+top_row2 <- L0 * PF * (Fx2 + lead(Fx,default = 0)) / 2 * sx
+
 ```
 
 # Now impute this row into the Leslie matrix
@@ -201,6 +210,10 @@ top_row <- L0 * PF * (Fx + lead(Fx,default = 0)) / 2 * sx
 First index is rows, second index is columns
 ```{r}
 Les[1, ] <- top_row
+
+# second copy with the narrower fertility distribution
+Les2 <- Les
+Les2[1, ] <- top_row2
 ```
 
 How to project 1 year using this matrix
@@ -233,10 +246,14 @@ proj <-
   P |> 
   filter(sex == "female") |> 
   select(year, age, p0 = pop2) |> 
+  # this line induces waviness in the starting population,
+  # for the experiment about wave dissipation
+  mutate(p02 = p0 * (sin(age /10) + 1.3)) |> 
   cross_join(horizon) |> 
   arrange(h, age) |> 
   group_by(h) |> 
-  mutate(pop = c((Les %^% h[1]) %*% p0 ))
+  mutate(pop = c((Les %^% h[1]) %*% p0 ),
+         pop2 = c((Les2 %^% h[1]) %*% p02 ))
 ```
 
 # Exercises
@@ -246,13 +263,17 @@ proj <-
 ```{r}
 proj |> 
   group_by(h) |> 
-  summarize(pop = sum(pop)) |> 
+  summarize(pop = sum(pop),
+            pop2 = sum(pop2)) |> 
   mutate(GGR = (lead(pop) - pop) / pop,
-         CGR = (lead(pop) - pop) / (lead(pop) + pop)/2) |> 
+         CGR = (lead(pop) - pop) / (lead(pop) + pop)/2,
+         CGR2 = (lead(pop2) - pop2) / (lead(pop2) + pop2)/2) |> 
   ggplot(aes(x = h, y = CGR)) +
   geom_line() +
+  geom_line(mapping=aes(y=CGR2), col = "red") +
   theme_minimal() +
-  labs(title = "geometric growth rate projection according to baseline demographic conditions")
+  labs(title = "geometric growth rate projection according to baseline demographic conditions",
+       subtitle = "the red line is the wave experiment")
 ```
 
 2. Make a plot show the (scaled) population structure in 10-year intervals, where the color of each line maps to h.
@@ -261,8 +282,11 @@ proj |>
 proj |> 
   filter((h %% 20) == 0) |> 
   group_by(h) |> 
-  mutate(Cx = pop / sum(pop)) |> 
-  ggplot(aes(x = age, y = Cx)) +
+  mutate(Cx = pop / sum(pop),
+         Cx2 = pop2 / sum(pop2)) |> 
+  select(h,age, Cx, Cx2) |> 
+  pivot_longer(Cx:Cx2, names_to = "variant", values_to = "Cx") |> 
+  ggplot(aes(x = age, y = Cx, color = variant)) +
   geom_line() +
   theme_minimal() +
   facet_wrap(~h)

@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 Here I grab male lifetables for Czechia using the `HMDHFDPlus` package; note I keep my login credentials stored in a funny place so that I can retrieve them like this and not type them directly into the script. I'll throw out all columns except year, age, mx, and ex (to compare).
 ```{r}
 library(HMDHFDplus)
+
+# getHMDitemavail("CZE") |> View()
 library(tidyverse)
 library(janitor)
 CZ <- readHMDweb("CZE",

@@ -1,0 +1,105 @@
+---
+title: "session 5 notes"
+author: "Tim Riffe"
+date: "2024-07-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Get data
+
+```{r}
+library(tidyverse)
+ES<- read_csv("https://github.com/timriffe/BSSD2024Module2/raw/master/data/ESmx.csv.gz", show_col_types = FALSE)
+```
+
+# Visualize surface
+
+Lexis surface:
+```{r}
+ES |> 
+  ggplot(aes(x = year, y = age, z = log(mx))) +
+  geom_contour_filled() +
+  coord_equal()
+```
+
+Lines 
+```{r}
+library(colorspace)
+alpha <- 
+  ES |> 
+  group_by(age) |> 
+  summarize(alphax = mean(mx, na.rm = TRUE))
+
+ES |> 
+  ggplot(aes(x = age, y = mx)) +
+  geom_line(mapping = aes(color = year, group = year),
+            alpha = .7) +
+  scale_y_log10()+
+  scale_color_continuous_sequential("Inferno") +
+  theme_minimal() +
+  geom_line(data = alpha,
+            mapping = aes(x = age, y = alphax),
+            color = "blue", linewidth = 1)
+```
+The blue line here does a pretty good job of describing the typical age pattern of log mortality over this period.
+
+It would be great if we had a simple time trend that we could use to slide this blue line up and down to approximate the mortality of a given year. That would mean each age changing (improving) at the same speed.
+
+Then we could make it even better if we had little adjustments to the speed of improvement for each age.
+
+We're starting with 7575 parameters:
+The blue line has 101 (alpha),
+a (centered) time trend would have 1 (a slope) (kappa)
+small age-specific adjustments to that trend would imply another 101 parameters, explains a little bit more of the variation. (beta)
+
+$$ \widehat{log(m_{x,t})} = \alpha_x + \kappa_t \cdot \beta_x$$
+
+# select year range to fit to
+
+# derive alpha
+
+# center log mortality matrix
+
+# perform SVD
+
+```{r}
+# (U %*% diag(d) %*% t(V)) - CLMX
+```
+
+# derive beta and kappa
+
+```{r}
+# u     first column of U
+
+# v     first column of V
+
+# d     first element of d
+
+# Bx    rescale u
+
+# Kt v scaled to sum of u and d
+```
+
+# join components and predict
+
+# examine the residuals
+
+# calculate drift and project kappa
+
+```{r}
+# drift     the span in kappa divided by horizon - 1
+
+# Kt future is last Kt + h * drift
+```
+
+# examine joined kappa series
+
+# recombine to create projected mortality schedule
+
+# check age patterns
+
+# calculate life expectancy

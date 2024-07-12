@@ -60,13 +60,58 @@ $$ \widehat{log(m_{x,t})} = \alpha_x + \kappa_t \cdot \beta_x$$
 
 # select year range to fit to
 
+I'm just going to use the whole series, but set it up so that we could filter the years easily later:
+```{r}
+ES_to_fit <-
+  ES |> 
+  filter(year >= 1950)
+```
+
 # derive alpha
 
+```{r}
+alpha <-
+  ES_to_fit |> 
+  group_by(age) |> 
+  summarize(alphax = mean(log(mx)))
+```
+
 # center log mortality matrix
+
+```{r}
+clmx <-
+  ES_to_fit |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(clmx = log(mx) - alphax)
+```
+
+Visualize the remaining variation after "centering" the log mortality rates:
+```{r}
+clmx |> 
+  ggplot(aes(x= age, y = clmx, color = year, group = year)) +
+  geom_line() +
+  scale_color_continuous_sequential("Inferno") +
+  theme_minimal()
+```
+This is the remaining variation after subtracting the average log mortality from each year. That means, subtracting the blue line from the earlier age pattern plot. This is the remaining variation that we want to model.
+
+```{r}
+CLMX <-
+  clmx |> 
+  select(year, age, clmx) |> 
+  pivot_wider(names_from = year, values_from = clmx) |> 
+  column_to_rownames("age") |> 
+  as.matrix()
+```
 
 # perform SVD
 
 ```{r}
+es_svd <- svd(CLMX)
+str(es_svd)
+d <- es_svd$d
+U <- es_svd$u
+V <- es_svd$v
 # (U %*% diag(d) %*% t(V)) - CLMX
 ```
 
@@ -74,17 +119,64 @@ $$ \widehat{log(m_{x,t})} = \alpha_x + \kappa_t \cdot \beta_x$$
 
 ```{r}
 # u     first column of U
+u      <- U[, 1]
 
 # v     first column of V
-
+v      <- V[, 1]
 # d     first element of d
 
+d      <- d[1]
 # Bx    rescale u
 
+betax <- u / sum(u)
+
 # Kt v scaled to sum of u and d
+kappat <- v * sum(u) * d
 ```
 
+Turn these into tidy objects to view:
+```{r}
+beta <- tibble(age = 0:100,
+               betax = betax)
+years <- ES_to_fit$year |> unique()
+
+kappa <- tibble(year = years,
+                kappat = kappat)
+```
+
+Take a look:
+```{r}
+beta |> 
+  ggplot(aes(x = age, y = betax)) +
+  geom_line() +
+  theme_minimal()
+
+kappa |> 
+  ggplot(aes(x = year, 
+             y = kappat)) +
+  geom_line() +
+  theme_minimal()
+```
+This kappa line is our time trend, from which we'd like to extract the pace of change in parameter called drift. If you were doing this in a serious setting, you would intervene here using time series modelling techniques. The random walk with drift approach is simple and effective, but you can do better.
+
 # join components and predict
+
+$$ \widehat{log(m_{x,t})} = \alpha_x + \kappa_t \cdot \beta_x$$
+```{r}
+ES_fit <- 
+  beta |> 
+  cross_join(kappa) |> 
+  left_join(alpha) |> 
+  mutate(lmx_hat = alphax + betax * kappat,
+         mx_hat = exp(lmx_hat)) |> 
+  left_join(ES_to_fit, by = join_by(year, age))
+```
+```{r}
+ES_fit |> 
+  ggplot(aes(x = age, y = mx_hat))
+```
+
+
 
 # examine the residuals
 

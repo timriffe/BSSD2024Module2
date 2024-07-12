@@ -64,7 +64,7 @@ I'm just going to use the whole series, but set it up so that we could filter th
 ```{r}
 ES_to_fit <-
   ES |> 
-  filter(year >= 1950)
+  filter(year >= 1970)
 ```
 
 # derive alpha
@@ -241,6 +241,7 @@ kappa_all |>
 
 # recombine to create projected mortality schedule
 
+This recalculates our mortality rate prediction the same way we did it before, except now we have a long horizon projection included.
 ```{r}
 proj <-
   kappa_all |> 
@@ -250,8 +251,71 @@ proj <-
          mx_hat = exp(lmx_hat))
 ```
 
-
-
 # check age patterns
 
+```{r}
+proj |> 
+  filter(year > 2014,
+         year %% 5 == 0,
+         year < 2040) |> 
+  ggplot(aes(x = age, y = mx_hat, color = year, group = year)) +
+  geom_line() +
+  scale_y_log10() +
+  scale_color_binned_sequential("Inferno") +
+  theme_minimal()
+```
+
 # calculate life expectancy
+
+```{r}
+source("https://raw.githubusercontent.com/timriffe/BSSD2024Module2/master/02_lifetables.R")
+
+LTproj <-
+  proj |> 
+  rename(mx = mx_hat) |> 
+  group_by(year) |> 
+  group_modify(~LT_tidy(data = .x)) |> 
+  ungroup()
+```
+
+Make a plot:
+
+```{r}
+LTproj |> 
+  filter(age == 0) |> 
+  ggplot(aes(x = year, y = ex, color = series)) +
+  geom_line() +
+  theme_minimal()
+```
+
+```{r}
+
+emp <-
+  ES |> 
+  group_by(year) |> 
+  group_modify(~LT_tidy(data = .x)) |> 
+  filter(age == 0) |> 
+  select(year, ex_emp = ex)
+
+LTproj |> 
+  filter(age == 0, 
+         year < 2015) |> 
+  ggplot(aes(x = -kappat, y = ex)) +
+  geom_point()
+
+# do we see a curve or line here?
+LTproj |> 
+  filter(age == 0, 
+         year < 2015) |> 
+  select(year, ex) |> 
+  left_join(emp, by = join_by(year)) |> 
+  ggplot(aes(x = ex_emp, y = ex)) +
+  geom_point() +
+  theme_minimal()
+```
+
+
+
+
+
+

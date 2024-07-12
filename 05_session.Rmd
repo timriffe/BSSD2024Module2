@@ -173,13 +173,33 @@ ES_fit <-
 ```
 ```{r}
 ES_fit |> 
-  ggplot(aes(x = age, y = mx_hat))
+  ggplot(aes(x = age, y = mx_hat, color = year, group = year)) +
+  geom_line() +
+  scale_y_log10() +
+  scale_color_continuous_sequential("Inferno") +
+  theme_minimal()
 ```
-
-
 
 # examine the residuals
 
+
+```{r}
+ES_fit |> 
+  mutate(resid = lmx_hat - log(mx),
+         resid = case_when(resid < -.25 ~ -.25,
+                           resid > .25 ~ .25,
+                           TRUE ~ resid)) |> 
+  ggplot(aes(x = year, y = age, fill = resid)) +
+  geom_tile() +
+  scale_fill_binned_diverging("Blue-Red") +
+  theme_minimal() +
+  coord_equal()
+#hcl_palettes(plot = TRUE)
+```
+
+We saw meaningful patterns in the residuals, mostly made of cohort patterns that we're not capturing, because the model as we applied it is an age-period abstraction of the original mortality rates. We only were able to see these cohort patterns because we subtracted the essential age-period variation. So they don't necessarily have huge influence on the resulting lifetables, but these patterns are likely demographically meaningful.
+
+But, for now we'll just swallow this imprecision and know that we won't be able to carry these cohort patterns into the future with the current setup.
 # calculate drift and project kappa
 
 ```{r}

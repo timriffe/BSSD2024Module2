@@ -315,6 +315,40 @@ LTproj |>
 ```
 
 
+Review of main concepts:
+
+1. Standard workflow
+2. Reproducibilty
+3. Report generation is great in markdown
+
+4. some lifetable columns should become intuitive and yield lessons.
+5. rates are great because they might have laws; laws are great for diagnostic purposes, or for predictions (incl smoothing).
+6. period summary indicators require special understanding.
+7. rates are super tricky to interpret directly, so we like to convert the units (years or babies)
+8. growth: separate matters of size from matters of structure.
+9. standardization can both help and hurt.
+10. if you can calculate it, then you can decompose a difference in it. More specific parameters will (potentially) more informative or actionable implications.
+
+Resources:
+1. the workshop repo <https://github.com/timriffe/BSSD2024Module2>
+2. Kieran Healy's book: <https://socviz.co/>
+3. data wrangling materials from me: <https://github.com/timriffe/edsd2023data>
+4. reproducibility packs
+5. package vignettes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

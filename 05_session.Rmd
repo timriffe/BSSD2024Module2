@@ -182,10 +182,12 @@ ES_fit |>
 
 # examine the residuals
 
-
 ```{r}
 ES_fit |> 
   mutate(resid = lmx_hat - log(mx),
+         # we truncate the extreme residuals, which are
+         # mostly due to noise, in order to see the main
+         # patterns in the residuals
          resid = case_when(resid < -.25 ~ -.25,
                            resid > .25 ~ .25,
                            TRUE ~ resid)) |> 
@@ -200,17 +202,55 @@ ES_fit |>
 We saw meaningful patterns in the residuals, mostly made of cohort patterns that we're not capturing, because the model as we applied it is an age-period abstraction of the original mortality rates. We only were able to see these cohort patterns because we subtracted the essential age-period variation. So they don't necessarily have huge influence on the resulting lifetables, but these patterns are likely demographically meaningful.
 
 But, for now we'll just swallow this imprecision and know that we won't be able to carry these cohort patterns into the future with the current setup.
+
 # calculate drift and project kappa
 
+Here we need to decide how far into the future we project. It's up to us. For forecasting (projecting where you put your name on it) a rule of thumb is to project no farther than half or a third of the width of your fitting period. Anything beyond that is just a scenario.
 ```{r}
-# drift     the span in kappa divided by horizon - 1
+# drift     the total change in kappa divided by horizon - 1
+n <- length(kappat)
+drift <- (kappat[n] - kappat[1]) / (n - 1)
 
 # Kt future is last Kt + h * drift
+h <- 1:100
+kappa_future <- kappat[n] + h * drift
+
+kappa_fut <-
+  tibble(year = years[n] + h,
+         kappat = kappa_future,
+         series = "future")
+```
+
+Now let's join our kappa series somehow and regenerate the mortality prediction.
+
+```{r}
+kappa_all <-
+  kappa |> 
+  mutate(series = "observed") |> 
+  bind_rows(kappa_fut)
 ```
 
 # examine joined kappa series
 
+```{r}
+kappa_all |> 
+  ggplot(aes(x = year, y = kappat, color = series)) +
+  geom_line() +
+  theme_minimal()
+```
+
 # recombine to create projected mortality schedule
+
+```{r}
+proj <-
+  kappa_all |> 
+  cross_join(beta) |> 
+  left_join(alpha, by = join_by(age)) |> 
+  mutate(lmx_hat = alphax + betax * kappat,
+         mx_hat = exp(lmx_hat))
+```
+
+
 
 # check age patterns
 
